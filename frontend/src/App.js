@@ -4,7 +4,7 @@ import MainContent from "./components/MainContent/MainContent"
 function App() {
   return (
       <div className="App">
-          <text className="Header">Subway Detection Assistant</text>
+          <text className="Header">Yellow line Detection</text>
           <MainContent/>
       </div>
   );

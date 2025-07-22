@@ -33,6 +33,7 @@ const ProcessVideoSettings = ({uploadedVideo, onVideoProcessed}) => {
 
         setProcessButtonDisabled(true);
         try {
+            console.log("HOST: ", HOST);
             let url = `http://${HOST}:8000/upload`;
 
             const response = await fetch(url, {
