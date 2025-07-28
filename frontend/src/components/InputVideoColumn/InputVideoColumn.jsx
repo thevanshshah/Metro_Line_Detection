@@ -1,24 +1,29 @@
-import classes from "./InputVideoColumn.module.css"
+import classes from "./InputVideoColumn.module.css";
 import React, { useState, useEffect } from 'react';
-import cameraPlaceholder from "../../img/SecurityCameraPNGImage.png"
+import cameraPlaceholder from "../../img/SecurityCameraPNGImage.png";
 
 const InputVideoColumn = (props) => {
-    const [videoUrl, setVideoUrl] = useState(null);
+    const [mediaUrl, setMediaUrl] = useState(null);
+    const [isImage, setIsImage] = useState(false);
 
     const handleFileChange = (e) => {
         const file = e.target.files[0];
-        if (videoUrl) {
-            URL.revokeObjectURL(videoUrl);
+        if (!file) return;
+
+        if (mediaUrl) {
+            URL.revokeObjectURL(mediaUrl);
         }
-        const videoObjectUrl = URL.createObjectURL(file);
-        setVideoUrl(videoObjectUrl);
+
+        const url = URL.createObjectURL(file);
+        setMediaUrl(url);
+        setIsImage(file.type.startsWith("image/")); // detect image
+
         props.onVideoUploaded(file);
     };
 
     return (
         <div className={classes.InputVideoColumn}>
-            {
-                !videoUrl &&
+            {!mediaUrl && (
                 <div style={{
                     height: "80%",
                     width: "100%",
@@ -28,23 +33,34 @@ const InputVideoColumn = (props) => {
                     justifyContent: "center",
                     flexDirection: "column"
                 }}>
-                    <img src={cameraPlaceholder} style={{ width: "50%"}}/>
+                    <img src={cameraPlaceholder} style={{ width: "50%" }} alt="placeholder" />
                 </div>
-            }
-            {
-                videoUrl &&
-                <video width="100%" height="80%" style={{ objectFit: 'cover' }} src={videoUrl} controls>
-                  <source type="video/mp4" />
-                  Your browser does not support the video tag.
+            )}
+
+            {mediaUrl && !isImage && (
+                <video width="100%" height="80%" style={{ objectFit: 'cover' }} src={mediaUrl} controls>
+                    <source type="video/mp4" />
+                    Your browser does not support the video tag.
                 </video>
-            }
-            <div style={{height: "5%"}}></div>
+            )}
+
+            {mediaUrl && isImage && (
+                <img src={mediaUrl} width="100%" height="80%" style={{ objectFit: 'cover' }} alt="Uploaded" />
+            )}
+
+            <div style={{ height: "5%" }}></div>
+
             <label className={classes.ChooseVideoButton}>
-                <input type="file" accept="video/*" onChange={handleFileChange} />
-                Choose video
+                {/* Accept both video and image formats */}
+                <input
+                    type="file"
+                    accept="video/*,image/*"
+                    onChange={handleFileChange}
+                />
+                Choose file
             </label>
         </div>
-)
-}
+    );
+};
 
 export default InputVideoColumn;

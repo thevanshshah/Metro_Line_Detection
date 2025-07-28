@@ -1,25 +1,22 @@
-import classes from "./ProcessedVideoColumn.module.css"
-import amongUsPlaceholder from "../../img/YellowAmongUsCharacterPNGImage.png"
-import {useState, useEffect} from "react"
+import classes from "./ProcessedVideoColumn.module.css";
+import React, { useState, useEffect } from 'react';
+import outputPlaceholder from "../../img/output.png";
 
-const ProcessedVideoColumn = ({processedVideo}) => {
-    const [processedVideoUrl, setProcessedVideoUrl] = useState(null);
+const ProcessedVideoColumn = ({ processedMedia }) => {
+    const [mediaUrl, setMediaUrl] = useState(null);
+    const [isImage, setIsImage] = useState(false);
 
     useEffect(() => {
-        if (processedVideo) {
-            if (processedVideoUrl) {
-                URL.revokeObjectURL(processedVideoUrl);
-            }
-
-            const videoObjectUrl = URL.createObjectURL(processedVideo);
-            setProcessedVideoUrl(videoObjectUrl);
+        if (processedMedia) {
+            const url = URL.createObjectURL(processedMedia);
+            setMediaUrl(url);
+            setIsImage(processedMedia.type.startsWith("image/"));
         }
-    }, [processedVideo])
+    }, [processedMedia]);
 
     return (
         <div className={classes.ProcessedVideoColumn}>
-            {
-                !processedVideoUrl &&
+            {!mediaUrl && (
                 <div style={{
                     height: "80%",
                     width: "100%",
@@ -29,18 +26,22 @@ const ProcessedVideoColumn = ({processedVideo}) => {
                     justifyContent: "center",
                     flexDirection: "column"
                 }}>
-                    <img src={amongUsPlaceholder} style={{ width: "50%"}} />
+                    <img src={outputPlaceholder} style={{ width: "50%" }} alt="placeholder" />
                 </div>
-            }
-            {
-                processedVideoUrl &&
-                <video width="100%" height="80%" style={{ objectFit: 'cover' }} src={processedVideoUrl} controls>
-                  <source type="video/mp4; codecs=avc1" />
-                  Your browser does not support the video tag.
+            )}
+
+            {mediaUrl && !isImage && (
+                <video width="100%" height="80%" style={{ objectFit: 'cover' }} src={mediaUrl} controls>
+                    <source type="video/mp4" />
+                    Your browser does not support the video tag.
                 </video>
-            }
+            )}
+
+            {mediaUrl && isImage && (
+                <img src={mediaUrl} width="100%" height="80%" style={{ objectFit: 'cover' }} alt="Processed" />
+            )}
         </div>
-    )
-}
+    );
+};
 
 export default ProcessedVideoColumn;

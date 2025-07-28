@@ -1,14 +1,13 @@
 import asyncio
 import shutil
 from io import BytesIO
-
+from pathlib import Path
 from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-
 from config import *
 from processing.folder_utils import create_folders, clear_folders
-from processing.processing import process_video
+from processing.processing import process_video, process_image
 
 app = FastAPI()
 
@@ -31,25 +30,40 @@ app.add_middleware(
 
 create_folders([UPLOADED_VIDEO_FOLDER])
 
-
 @app.post("/upload")
-async def upload(video: UploadFile = File(), mode: str = Form(), fps: int = Form()):
+async def upload(
+    file: UploadFile = File(...),
+    mode: str = Form(...),
+    fps: int = Form(...)
+):
     clear_folders([UPLOADED_VIDEO_FOLDER])
+    file_path = UPLOADED_VIDEO_FOLDER / file.filename
     print(f"Mode: {mode}, FPS: {fps}")
-    uploaded_video_path = UPLOADED_VIDEO_FOLDER / video.filename
+    print("File path: ", file_path)
 
-    print("File path: ", uploaded_video_path)
+    # Save uploaded file
+    with file_path.open("wb") as out_file:
+        shutil.copyfileobj(file.file, out_file)
 
-    with uploaded_video_path.open("wb") as uploaded_file:
-        shutil.copyfileobj(video.file, uploaded_file)
+    # Detect file type and process accordingly
+    if file.filename.lower().endswith((".mp4", ".avi", ".mov")):
+        # Async video processing
+        process_task = asyncio.create_task(process_video(path_to_file=file_path, mode=mode, fps=fps))
+        await process_task
+        processed_path = process_task.result()
+    elif file.filename.lower().endswith((".jpg", ".jpeg", ".png", ".bmp")):
+        # Sync image processing offloaded to thread
+        processed_path = await asyncio.to_thread(process_image, path_to_file=file_path, mode=mode)
+    else:
+        return {"error": "Unsupported file format."}
 
-    process_video_task = asyncio.create_task(process_video(path_to_file=uploaded_video_path, mode=mode, fps=fps))
-    await process_video_task
-    processed_video_path = process_video_task.result()
-    print("Processed video path: ", processed_video_path)
+    print("Processed path: ", processed_path)
 
-    with processed_video_path.open("rb") as processed_video:
-        content = processed_video.read()
-        content_stream = BytesIO(content)
-        return StreamingResponse(content_stream, media_type="video/mp4", headers={
-            "Content-Disposition": f"filename={video.filename}"})
+    # Return processed file as stream
+    with processed_path.open("rb") as result:
+        content = result.read()
+        return StreamingResponse(
+            BytesIO(content),
+            media_type="image/png" if processed_path.suffix in ['.png', '.jpg', '.jpeg'] else "video/mp4",
+            headers={"Content-Disposition": f"filename={file.filename}"}
+        )

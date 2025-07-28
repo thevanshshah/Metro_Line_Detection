@@ -6,7 +6,7 @@ import cv2
 
 model = YOLO('./yolov8m-pose.pt')
 
-# TODO: async
+# Human Pose Estimation function
 async def hpe_images(input_folder: Path, output_folder: Path):
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Function: {hpe_images.__name__}. Device: {device}")
@@ -15,37 +15,47 @@ async def hpe_images(input_folder: Path, output_folder: Path):
     model.to(device)
 
     with torch.no_grad():
-        results = model.predict(source=input_folder, save=True, project="processed", name="hpe_frames", conf=0.3, exist_ok=True)
+        results = model.predict(
+            source=input_folder,
+            save=True,
+            project="processed",
+            name="hpe_frames",
+            conf=0.3,
+            exist_ok=True
+        )
 
     return results
 
-
+# ✅ Updated check_danger logic
 def check_danger(img_path, box):
-    # box coordinates in (left, bottom, right, top) format
-    in_danger = True
+    """
+    Determines if a person is in danger based on whether their feet
+    (bottom 10% of the bounding box) intersect with the yellow segmented line.
+    """
     img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
-    left, bottom, right, top = tuple(map(int, box))
-    width = right - left
-    height = top - bottom
+    left, top, right, bottom = map(int, box)
 
-    bottom_white_count, top_white_count = 0, 0
-    for x in range(left - 1, right):
-        bottom_white_count += img[bottom - 1][x] > 128
-        top_white_count += img[top - 1][x] > 128
+    # Define the foot region (bottom 10% of the person box)
+    foot_top = bottom - int((bottom - top) * 0.1)
 
-    in_danger = bottom_white_count / width >= 0.25 or top_white_count / width >= 0.25
+    # Clip boundaries
+    foot_top = max(0, foot_top)
+    bottom = min(img.shape[0] - 1, bottom)
+    left = max(0, left)
+    right = min(img.shape[1] - 1, right)
 
-    if not in_danger:
-        left_white_count, right_white_count = 0, 0
-        for y in range(bottom - 1, top):
-            left_white_count += img[y][left - 1] > 128
-            right_white_count += img[y][right - 1] > 128
+    foot_region = img[foot_top:bottom, left:right]
 
-        in_danger = left_white_count / height >= 0.25 or right_white_count / height >= 0.25
+    if foot_region.size == 0:
+        return False  # Cannot decide
 
-    return in_danger
+    # Count white pixels in foot region (white = yellow segment)
+    white_pixel_ratio = (foot_region > 128).sum() / foot_region.size
 
+    # Danger if ≥10% of foot area overlaps with yellow line
+    return white_pixel_ratio >= 0.1
 
+# Overlays bounding boxes on original image
 def project_hpe_onto(hpe_results, segmented_folder: Path, project_onto_folder: Path, output_folder: Path):
     for i, result in enumerate(hpe_results):
         img_path = project_onto_folder.absolute().as_posix() + "/" + Path(result.path).name
@@ -56,11 +66,13 @@ def project_hpe_onto(hpe_results, segmented_folder: Path, project_onto_folder: P
 
         boxes = result.boxes
         for box in boxes:
-            b = box.xyxy[0]  # get box coordinates in (left, bottom, right, top) format
+            b = box.xyxy[0]  # (left, top, right, bottom)
             in_danger = check_danger(segmented_img_path, b)
-            # label = "in danger" if in_danger else "in safety"
-            label = ""
-            color = (0, 0, 255) if in_danger else (0, 128, 0)
+            
+            # ✅ Label and color
+            label = "DANGER" if in_danger else "SAFE"
+            color = (0, 0, 255) if in_danger else (0, 255, 0)
+
             annotator.box_label(b, label, color=color)
 
         result_img = annotator.result()
